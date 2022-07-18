@@ -113,3 +113,5 @@ venv.bak/
 *.onnx
 *.pt
 *.engine
+
+!data/get_coco_dataset.sh
