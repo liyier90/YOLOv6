@@ -17,17 +17,17 @@ from yolov6.utils.general import increment_name
 
 @torch.no_grad()
 def run(
-    data,
-    weights=None,
-    batch_size=32,
-    img_size=640,
-    conf_thres=0.001,
-    iou_thres=0.65,
-    task="val",
-    device="",
-    half=False,
-    save_dir="",
-    name="",
+    data: str,
+    weights: str = None,
+    batch_size: int = 32,
+    img_size: int = 640,
+    conf_thres: float = 0.001,
+    iou_thres: float = 0.65,
+    task: str = "val",
+    device: str = "",
+    half: bool = False,
+    save_dir: str = "",
+    name: str = "",
     dataloader=None,
     model=None,
 ):
@@ -41,19 +41,26 @@ def run(
     """
 
     # task
-    Evaler.check_task(task)
-    save_dir = increment_name(Path(save_dir) / name)
-    save_dir.mkdir(parents=True, exist_ok=True)
+    Evaler.check_task(task)  # assertions
+    save_directory = increment_name(Path(save_dir) / name)
+    save_directory.mkdir(parents=True, exist_ok=True)
 
     # reload thres/device/half/data according task
     conf_thres, iou_thres = Evaler.reload_thres(conf_thres, iou_thres, task)
-    device = Evaler.reload_device(device, model, task)
-    half = device.type != "cpu" and half
-    data = Evaler.reload_dataset(data) if isinstance(data, str) else data
+    torch_device = Evaler.reload_device(device, model, task)
+    half = torch_device.type != "cpu" and half
+    data = Evaler.reload_dataset(data)
 
     # init
     val = Evaler(
-        data, batch_size, img_size, conf_thres, iou_thres, device, half, str(save_dir)
+        data,
+        batch_size,
+        img_size,
+        conf_thres,
+        iou_thres,
+        torch_device,
+        half,
+        save_directory,
     )
     model = val.init_model(model, weights, task)
     dataloader = val.init_data(dataloader, task)
