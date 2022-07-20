@@ -3,14 +3,32 @@
 import os
 import os.path as osp
 import shutil
+from functools import singledispatch
 from pathlib import Path
+from types import SimpleNamespace
 
 import torch
+import yaml
 
 from yolov6.models.yolo import Model
 from yolov6.utils.config import Config
 from yolov6.utils.events import LOGGER
 from yolov6.utils.torch_utils import fuse_model
+
+
+@singledispatch
+def wrap_namespace(ob):
+    return ob
+
+
+@wrap_namespace.register(dict)
+def _wrap_dict(ob):
+    return SimpleNamespace(**{k: wrap_namespace(v) for k, v in ob.items()})
+
+
+@wrap_namespace.register(list)
+def _wrap_list(ob):
+    return [wrap_namespace(v) for v in ob]
 
 
 def load_state_dict(weights, model, map_location=None):
@@ -55,14 +73,20 @@ def load_from_state_dict(
     """Load model from checkpoint file."""
     LOGGER.info("Loading checkpoint from {}".format(weights))
     ckpt = torch.load(weights, map_location=map_location)  # load
-    config = Config.fromfile(
-        Path(__file__).resolve().parents[2] / "configs" / "yolov6n.py"
+    # config = Config.fromfile(
+    #     Path(__file__).resolve().parents[2] / "configs" / "yolov6n.py"
+    # )
+    with open(
+        Path(__file__).resolve().parents[2] / "configs" / "yolov6n.yml"
+    ) as infile:
+        data = wrap_namespace(yaml.safe_load(infile.read()))
+    # if not hasattr(config, "training_mode"):
+    #     setattr(config, "training_mode", "repvgg")
+    if not hasattr(data, "training_mode"):
+        setattr(data, "training_mode", "repvgg")
+    model = Model(data, channels=3, num_classes=80, anchors=data.model.head.anchors).to(
+        map_location
     )
-    if not hasattr(config, "training_mode"):
-        setattr(config, "training_mode", "repvgg")
-    model = Model(
-        config, channels=3, num_classes=80, anchors=config.model.head.anchors
-    ).to(map_location)
     model.float()
     model.load_state_dict(ckpt)
     if fuse:
