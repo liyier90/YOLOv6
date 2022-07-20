@@ -3,10 +3,12 @@
 import os
 import os.path as osp
 import shutil
+from pathlib import Path
 
 import torch
 
 from yolov6.models.yolo import Model
+from yolov6.utils.config import Config
 from yolov6.utils.events import LOGGER
 from yolov6.utils.torch_utils import fuse_model
 
@@ -36,6 +38,33 @@ def load_checkpoint(
     LOGGER.info("Loading checkpoint from {}".format(weights))
     ckpt = torch.load(weights, map_location=map_location)  # load
     model = ckpt["ema" if ckpt.get("ema") else "model"].float()
+    if fuse:
+        LOGGER.info("\nFusing model...")
+        model = fuse_model(model).eval()
+    else:
+        model = model.eval()
+    return model
+
+
+def load_from_state_dict(
+    weights: str,
+    map_location: torch.device = None,
+    inplace: bool = True,
+    fuse: bool = True,
+) -> Model:
+    """Load model from checkpoint file."""
+    LOGGER.info("Loading checkpoint from {}".format(weights))
+    ckpt = torch.load(weights, map_location=map_location)  # load
+    config = Config.fromfile(
+        Path(__file__).resolve().parents[2] / "configs" / "yolov6n.py"
+    )
+    if not hasattr(config, "training_mode"):
+        setattr(config, "training_mode", "repvgg")
+    model = Model(
+        config, channels=3, num_classes=80, anchors=config.model.head.anchors
+    ).to(map_location)
+    model.float()
+    model.load_state_dict(ckpt)
     if fuse:
         LOGGER.info("\nFusing model...")
         model = fuse_model(model).eval()

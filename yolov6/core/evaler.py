@@ -20,7 +20,7 @@ from tqdm import tqdm
 from yolov6.data.data_load import create_dataloader
 from yolov6.layers.common import RepVGGBlock
 from yolov6.models.yolo import Model
-from yolov6.utils.checkpoint import load_checkpoint
+from yolov6.utils.checkpoint import load_checkpoint, load_from_state_dict
 from yolov6.utils.events import LOGGER, NCOLS
 from yolov6.utils.nms import non_max_suppression
 from yolov6.utils.torch_utils import get_model_info, time_sync
@@ -159,7 +159,8 @@ class Evaler:
     def init_model(self, model, weights, task) -> Model:
         """Initialize model"""
         if task != "train":
-            model = load_checkpoint(weights, map_location=self.device)
+            # model = load_checkpoint(weights, map_location=self.device)
+            model = load_from_state_dict(weights, map_location=self.device)
             self.stride = int(model.stride.max())
             if self.device.type != "cpu":
                 model(
