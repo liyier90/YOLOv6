@@ -22,11 +22,15 @@ def augment_hsv(im, hgain=0.5, sgain=0.5, vgain=0.5):
         lut_sat = np.clip(x * r[1], 0, 255).astype(dtype)
         lut_val = np.clip(x * r[2], 0, 255).astype(dtype)
 
-        im_hsv = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
+        im_hsv = cv2.merge(
+            (cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val))
+        )
         cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=im)  # no return needed
 
 
-def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleup=True, stride=32):
+def letterbox(
+    im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleup=True, stride=32
+):
     # Resize and pad image while meeting stride-multiple constraints
     shape = im.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
@@ -51,7 +55,9 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleu
         im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    im = cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    im = cv2.copyMakeBorder(
+        im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color
+    )  # add border
     return im, r, (dw, dh)
 
 
@@ -63,30 +69,44 @@ def mixup(im, labels, im2, labels2):
     return im, labels
 
 
-def box_candidates(box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16):  # box1(4,n), box2(4,n)
+def box_candidates(
+    box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16
+):  # box1(4,n), box2(4,n)
     # Compute candidate boxes: box1 before augment, box2 after augment, wh_thr (pixels), aspect_ratio_thr, area_ratio
     w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
     w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
     ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
-    return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)  # candidates
+    return (
+        (w2 > wh_thr)
+        & (h2 > wh_thr)
+        & (w2 * h2 / (w1 * h1 + eps) > area_thr)
+        & (ar < ar_thr)
+    )  # candidates
 
 
-def random_affine(img, labels=(), degrees=10, translate=.1, scale=.1, shear=10,
-                  new_shape=(640, 640)):
+def random_affine(
+    img, labels=(), degrees=10, translate=0.1, scale=0.1, shear=10, new_shape=(640, 640)
+):
 
     n = len(labels)
     height, width = new_shape
 
-    M, s = get_transform_matrix(img.shape[:2], (height, width), degrees, scale, shear, translate)
+    M, s = get_transform_matrix(
+        img.shape[:2], (height, width), degrees, scale, shear, translate
+    )
     if (M != np.eye(3)).any():  # image changed
-        img = cv2.warpAffine(img, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
+        img = cv2.warpAffine(
+            img, M[:2], dsize=(width, height), borderValue=(114, 114, 114)
+        )
 
     # Transform label coordinates
     if n:
         new = np.zeros((n, 4))
 
         xy = np.ones((n * 4, 3))
-        xy[:, :2] = labels[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
+        xy[:, :2] = labels[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(
+            n * 4, 2
+        )  # x1y1, x2y2, x1y2, x2y1
         xy = xy @ M.T  # transform
         xy = xy[:, :2].reshape(n, 8)  # perspective rescale or affine
 
@@ -129,8 +149,12 @@ def get_transform_matrix(img_shape, new_shape, degrees, scale, shear, translate)
 
     # Translation
     T = np.eye(3)
-    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * new_width  # x translation (pixels)
-    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * new_height  # y transla ion (pixels)
+    T[0, 2] = (
+        random.uniform(0.5 - translate, 0.5 + translate) * new_width
+    )  # x translation (pixels)
+    T[1, 2] = (
+        random.uniform(0.5 - translate, 0.5 + translate) * new_height
+    )  # y transla ion (pixels)
 
     # Combined rotation matrix
     M = T @ S @ R @ C  # order of operations (right to left) is IMPORTANT
@@ -139,19 +163,35 @@ def get_transform_matrix(img_shape, new_shape, degrees, scale, shear, translate)
 
 def mosaic_augmentation(img_size, imgs, hs, ws, labels, hyp):
 
-    assert len(imgs) == 4, "Mosaic augmentation of current version only supports 4 images."
+    assert (
+        len(imgs) == 4
+    ), "Mosaic augmentation of current version only supports 4 images."
 
     labels4 = []
     s = img_size
-    yc, xc = (int(random.uniform(s//2, 3*s//2)) for _ in range(2))  # mosaic center x, y
+    yc, xc = (
+        int(random.uniform(s // 2, 3 * s // 2)) for _ in range(2)
+    )  # mosaic center x, y
     for i in range(len(imgs)):
         # Load image
         img, h, w = imgs[i], hs[i], ws[i]
         # place img in img4
         if i == 0:  # top left
-            img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-            x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
-            x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h  # xmin, ymin, xmax, ymax (small image)
+            img4 = np.full(
+                (s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8
+            )  # base image with 4 tiles
+            x1a, y1a, x2a, y2a = (
+                max(xc - w, 0),
+                max(yc - h, 0),
+                xc,
+                yc,
+            )  # xmin, ymin, xmax, ymax (large image)
+            x1b, y1b, x2b, y2b = (
+                w - (x2a - x1a),
+                h - (y2a - y1a),
+                w,
+                h,
+            )  # xmin, ymin, xmax, ymax (small image)
         elif i == 1:  # top right
             x1a, y1a, x2a, y2a = xc, max(yc - h, 0), min(xc + w, s * 2), yc
             x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
@@ -170,24 +210,35 @@ def mosaic_augmentation(img_size, imgs, hs, ws, labels, hyp):
         labels_per_img = labels[i].copy()
         if labels_per_img.size:
             boxes = np.copy(labels_per_img[:, 1:])
-            boxes[:, 0] = w * (labels_per_img[:, 1] - labels_per_img[:, 3] / 2) + padw  # top left x
-            boxes[:, 1] = h * (labels_per_img[:, 2] - labels_per_img[:, 4] / 2) + padh  # top left y
-            boxes[:, 2] = w * (labels_per_img[:, 1] + labels_per_img[:, 3] / 2) + padw  # bottom right x
-            boxes[:, 3] = h * (labels_per_img[:, 2] + labels_per_img[:, 4] / 2) + padh  # bottom right y
+            boxes[:, 0] = (
+                w * (labels_per_img[:, 1] - labels_per_img[:, 3] / 2) + padw
+            )  # top left x
+            boxes[:, 1] = (
+                h * (labels_per_img[:, 2] - labels_per_img[:, 4] / 2) + padh
+            )  # top left y
+            boxes[:, 2] = (
+                w * (labels_per_img[:, 1] + labels_per_img[:, 3] / 2) + padw
+            )  # bottom right x
+            boxes[:, 3] = (
+                h * (labels_per_img[:, 2] + labels_per_img[:, 4] / 2) + padh
+            )  # bottom right y
             labels_per_img[:, 1:] = boxes
 
         labels4.append(labels_per_img)
 
     # Concat/clip labels
     labels4 = np.concatenate(labels4, 0)
-    for x in (labels4[:, 1:]):
+    for x in labels4[:, 1:]:
         np.clip(x, 0, 2 * s, out=x)
 
     # Augment
-    img4, labels4 = random_affine(img4, labels4,
-                                  degrees=hyp['degrees'],
-                                  translate=hyp['translate'],
-                                  scale=hyp['scale'],
-                                  shear=hyp['shear'])
+    img4, labels4 = random_affine(
+        img4,
+        labels4,
+        degrees=hyp["degrees"],
+        translate=hyp["translate"],
+        scale=hyp["scale"],
+        shear=hyp["shear"],
+    )
 
     return img4, labels4

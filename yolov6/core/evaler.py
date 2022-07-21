@@ -209,9 +209,10 @@ class Evaler:
             self.speed_result[0] += len(outputs)
 
             # save result
-            pred_results.extend(
-                self.convert_to_coco_format(outputs, imgs, paths, shapes, self.ids)
+            coco_results = self.convert_to_coco_format(
+                outputs, imgs, paths, shapes, self.ids
             )
+            pred_results.extend(coco_results)
         return pred_results
 
     @staticmethod
