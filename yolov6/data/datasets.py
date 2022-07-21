@@ -2,13 +2,12 @@
 # -*- coding:utf-8 -*-
 
 import glob
+import hashlib
+import json
 import os
 import os.path as osp
 import random
-import json
 import time
-import hashlib
-
 from multiprocessing.pool import Pool
 
 import cv2
@@ -18,14 +17,15 @@ from PIL import ExifTags, Image, ImageOps
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from yolov6.utils.events import LOGGER
+
 from .data_augment import (
     augment_hsv,
     letterbox,
     mixup,
-    random_affine,
     mosaic_augmentation,
+    random_affine,
 )
-from yolov6.utils.events import LOGGER
 
 # Parameters
 IMG_FORMATS = ["bmp", "jpg", "jpeg", "png", "tif", "tiff", "dng", "webp", "mpo"]
@@ -173,7 +173,9 @@ class TrainValDataset(Dataset):
             Image, original shape of image, resized image shape
         """
         path = self.img_paths[index]
-        im = cv2.imread(path)
+        # im = cv2.imread(path)
+        cap = cv2.VideoCapture(path)
+        _, im = cap.read()
         assert im is not None, f"Image Not Found {path}, workdir: {os.getcwd()}"
 
         h0, w0 = im.shape[:2]  # origin shape
@@ -308,8 +310,12 @@ class TrainValDataset(Dataset):
                 )
 
         if self.task.lower() == "val":
-            if self.data_dict.get("is_coco", False): # use original json file when evaluating on coco dataset.
-                assert osp.exists(self.data_dict["anno_path"]), "Eval on coco dataset must provide valid path of the annotation file in config file: data/coco.yaml"
+            if self.data_dict.get(
+                "is_coco", False
+            ):  # use original json file when evaluating on coco dataset.
+                assert osp.exists(
+                    self.data_dict["anno_path"]
+                ), "Eval on coco dataset must provide valid path of the annotation file in config file: data/coco.yaml"
             else:
                 assert (
                     self.class_names
